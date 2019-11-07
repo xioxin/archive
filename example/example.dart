@@ -3,6 +3,8 @@ import 'package:archive/archive.dart';
 import 'package:archive/archive_io.dart';
 
 void main() {
+
+  final start = new DateTime.now().millisecondsSinceEpoch;
   // Read the Zip file from disk.
   List<int> bytes = File('test.zip').readAsBytesSync();
 
@@ -23,6 +25,10 @@ void main() {
     }
   }
 
+  final end = new DateTime.now().millisecondsSinceEpoch;
+  print('timer ${end - start}ms');
+
+  /*
   // Encode the archive as a BZip2 compressed Tar file.
   List<int> tar_data = TarEncoder().encode(archive);
   List<int> tar_bz2 = BZip2Encoder().encode(tar_data);
@@ -39,5 +45,5 @@ void main() {
   encoder.create('out2.zip');
   encoder.addDirectory(Directory('out'));
   encoder.addFile(File('test.zip'));
-  encoder.close();
+  encoder.close();*/
 }
