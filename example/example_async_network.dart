@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 import 'package:archive/src/async/archive_async.dart';
 import 'package:archive/src/async/archive_file_async.dart';

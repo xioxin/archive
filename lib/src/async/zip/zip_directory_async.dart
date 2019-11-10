@@ -1,5 +1,4 @@
 import '../../util/archive_exception.dart';
-import '../../util/input_stream.dart';
 import '../input_stream_async.dart';
 import 'zip_file_header_async.dart';
 
