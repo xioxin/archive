@@ -2,11 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import './range_manage.dart';
 import '../util/archive_exception.dart';
 import '../util/byte_order.dart';
 import '../util/input_stream.dart';
 
-typedef Future<List<int>> InputFunction (int offset, int length);
+typedef Future<List<int>> InputFunction (int offset, int length, InputStreamAsync self);
 
 /// A buffer that can be read as a stream of bytes
 class InputStreamAsync {
@@ -28,13 +29,13 @@ class InputStreamAsync {
     }
   }
 
-
-
   int offset;
   final int start;
   final int byteOrder;
   final int chunkSize;
   final InputFunction loader;
+
+  RangeManage loadedRange = RangeManage();
 
   InputStreamAsync parent;
 
@@ -50,45 +51,12 @@ class InputStreamAsync {
     _length =  length != null ? length : this.parent._length;
   }
 
-  printProgressBar() {
-    final barLength = 100;
-    final blockSize = _length ~/ barLength;
-    int index = 0;
-    final list = new List(barLength).map((v) {
-
-      final sub = buffer.sublist(index * blockSize, (index + 1) * blockSize);
-      final v1 = sub.length.toDouble();
-      final v2 = sub.where((v) => v != null).length.toDouble();
-      final double b = v2 / v1;
-      index++;
-
-      if(b == 1){
-        return '█';
-      }
-
-      if(b > 75){
-        return '▓';
-      }
-
-      if(b > 50){
-        return '▒';
-      }
-      if(b > 25){
-        return '░';
-      }
-      if(b > 0){
-        return '.';
-      }
-      return '_';
-    });
-    print(list.join(''));
-  }
-
   Future loadData(int offset, int length) async {
     if(this.parent != null) {
       return await this.parent.loadData(offset, length);
     }
-    final data = await loader(offset, length);
+    final data = await loader(offset, length, this);
+    loadedRange.add(offset, offset + length);
     int index = offset;
     data.forEach((v) {
       buffer[index] = v;
@@ -96,10 +64,15 @@ class InputStreamAsync {
     });
   }
 
+//  bool integrityCheck(int offset, int length){
+//    final b = buffer.sublist(offset, offset+length).every((v) => v != null);
+//    return b;
+//  }
+
   bool integrityCheck(int offset, int length){
-    final b = buffer.sublist(offset, offset+length).every((v) => v != null);
-    return b;
+    return loadedRange.has(offset, offset + length);
   }
+
 
   checkAndLoad(int offset, [int length = 1]) async{
     if(this.parent != null) {

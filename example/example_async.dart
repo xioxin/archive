@@ -1,41 +1,52 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:io';
 import 'package:archive/archive.dart';
 import 'package:archive/archive_io.dart';
 import 'package:archive/src/async/archive_async.dart';
 import 'package:archive/src/async/archive_file_async.dart';
 import 'package:archive/src/async/input_stream_async.dart';
+import 'package:archive/src/async/range_manage.dart';
 import 'package:archive/src/async/zip_decoder_async.dart';
 
-void main() async {
+// 2020ms
 
-  final start = new DateTime.now().millisecondsSinceEpoch;
+void main() async {
+  final start = DateTime.now().millisecondsSinceEpoch;
 
   final file = await File('test.zip').open(mode: FileMode.read);
   final fileLength = await file.length();
 
-  final ias = InputStreamAsync((int offset, int length) async {
+  final ias =
+      InputStreamAsync((int offset, int length, InputStreamAsync self) async {
+    final file = await File('test.zip').open(mode: FileMode.read);
     await file.setPosition(offset);
     final buff = (await file.read(length)).buffer.asUint8List();
     return buff;
-  }, fileLength, chunkSize: 1);
+  }, fileLength, chunkSize: 1024 * 4);
 
-  ArchiveAsync archive = await ZipDecoderAsync().decodeBufferAsync(ias, verify: true);
+  ArchiveAsync archive =
+      await ZipDecoderAsync().decodeBufferAsync(ias, verify: true);
 
-  for (ArchiveFileAsync filePack in archive) {
-    String filename = filePack.name;
-    if(filePack.isFile) {
-      final data = (await filePack.getAsyncFile()).content;
-      final file = File('out/' + filename);
-      await file.create(recursive: true);
-      await file.writeAsBytes(data);
+  List<Future> p = [];
+
+  for (ArchiveFileAsync file in archive) {
+    String filename = file.name;
+    if (file.isFile) {
+      p.add(file.loadContent().then((file) async {
+        final data = file.content;
+        final outFile = File('out/' + filename);
+        await outFile.create(recursive: true);
+        await outFile.writeAsBytes(data);
+      }));
     } else {
-      Directory('out/' + filename)
-        ..create(recursive: true);
+      Directory('out/' + filename)..create(recursive: true);
     }
   }
 
-  final end = new DateTime.now().millisecondsSinceEpoch;
+  await Future.wait(p);
+
+  final end = DateTime.now().millisecondsSinceEpoch;
 
   print('timer ${end - start}ms');
 }

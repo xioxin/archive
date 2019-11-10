@@ -18,7 +18,7 @@ void main() async {
   print('acceptRanges: ${acceptRanges}');
   print('contentType: ${contentType}');
 
-  final ias = InputStreamAsync((int offset, int length) async {
+  final ias = InputStreamAsync((int offset, int length, InputStreamAsync self) async {
     print('bytes=${offset}-${offset + length}');
     final testData = await dio.get(url,
         options: Options(
@@ -36,9 +36,9 @@ void main() async {
     print(filename);
   }
 
-  ArchiveFileAsync filePack =
+  ArchiveFileAsync file =
       archive.findFile('jonas-vincent-xulIYVIbYIc-unsplash.jpg');
-  final file = await filePack.getAsyncFile();
+  await file.loadContent();
 
   File('out/' + 'jonas-vincent-xulIYVIbYIc-unsplash.jpg')
     ..createSync(recursive: true)

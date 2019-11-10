@@ -4,7 +4,7 @@ author: Brendan Duncan <brendanduncan@gmail.com>
 description: Provides encoders and decoders for various archive and compression formats such as zip, tar, bzip2, gzip, and zlib.
 homepage: https://github.com/brendan-duncan/archive
 environment:
-  sdk: '>=2.0.0-dev.49.0 <3.0.0'
+  sdk: '>=2.2.0 <3.0.0'
 documentation: https://github.com/brendan-duncan/archive/wiki
 dependencies:
   crypto: '>=2.0.0 <3.0.0'

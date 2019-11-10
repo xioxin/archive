@@ -72,45 +72,24 @@ class ZipDecoderAsync {
     ArchiveAsync archive = ArchiveAsync();
 
     for (ZipFileHeaderAsync zfh in directory.fileHeaders) {
-      // The attributes are stored in base 8
       final mode = zfh.externalFileAttributes;
       final compress = zfh.compressionMethod != ZipFileAsync.STORE;
-//      var content = zf.rawContent;
-      var file = ArchiveFileAsync.async(zfh.filename, zfh.uncompressedSize, () async {
+      var file = ArchiveFileAsync.async(zfh.filename, zfh.uncompressedSize, null, zfh.compressionMethod);
+      file.getArchiveFile = () async {
         final zf = ZipFileAsync(zfh);
         final zfInput = input.subset(zfh.localHeaderOffset);
-//        input.offset = zfh.localHeaderOffset;
         await zf.init(zfInput, password);
-        final mode = zfh.externalFileAttributes;
-        final compress = zf.compressionMethod != ZipFile.STORE;
         if (verify) {
           int computedCrc = getCrc32(zf.content);
           if (computedCrc != zf.crc32) {
             throw ArchiveException('Invalid CRC for file in archive.');
           }
         }
-
-        var content = zf.rawContent;
-        var file = ArchiveFile(zf.filename, zf.uncompressedSize, content,
-            zf.compressionMethod);
-
-        file.mode = mode >> 16;
-
-        // see https://github.com/brendan-duncan/archive/issues/21
-        // UNIX systems has a creator version of 3 decimal at 1 byte offset
-        if (zfh.versionMadeBy >> 8 == 3) {
-          //final bool isDirectory = file.mode & 0x7000 == 0x4000;
-          final bool isFile = file.mode & 0x3F000 == 0x8000;
-          file.isFile = isFile;
-        } else {
-          file.isFile = !file.name.endsWith('/');
-        }
-
-        file.crc32 = zf.crc32;
-        file.compress = compress;
+        file.name = zf.filename;
+        file.size = zf.uncompressedSize;
+        file.setContent(zf.rawContent);
         file.lastModTime = zf.lastModFileDate << 16 | zf.lastModFileTime;
-        return file;
-      }, zfh.compressionMethod);
+      };
 
       file.mode = mode >> 16;
       if (zfh.versionMadeBy >> 8 == 3) {
