@@ -122,4 +122,10 @@ class ArchiveFileAsync {
   InputStream _rawContent;
   dynamic _content;
 
+  destroy() {
+    this.getArchiveFile = null;
+    _content = null;
+    _rawContent = null;
+  }
+
 }

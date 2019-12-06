@@ -6,6 +6,7 @@ import './range_manage.dart';
 import '../util/archive_exception.dart';
 import '../util/byte_order.dart';
 import '../util/input_stream.dart';
+import 'disk-cache.dart';
 
 typedef Future<List<int>> InputFunction (int offset, int length, InputStreamAsync self);
 
@@ -33,14 +34,17 @@ class InputStreamAsync {
   final int start;
   final int byteOrder;
   final int chunkSize;
-  final InputFunction loader;
+  InputFunction loader;
+
+  DiskCache diskCache;
+
 
   RangeManage loadedRange = RangeManage();
 
   InputStreamAsync parent;
 
   /// Create a InputStream for reading from a List<int>
-  InputStreamAsync(this.loader, int length, {this.byteOrder = LITTLE_ENDIAN, this.chunkSize = 8 * 1024, this.start = 0}):
+  InputStreamAsync(this.loader, int length, {this.byteOrder = LITTLE_ENDIAN, this.chunkSize = 8 * 1024, this.start = 0, this.diskCache}):
         _buffer = new List(length){
     _length = length;
     offset = start;
@@ -55,7 +59,16 @@ class InputStreamAsync {
     if(this.parent != null) {
       return await this.parent.loadData(offset, length);
     }
-    final data = await loader(offset, length, this);
+    List<int> data;
+    if(diskCache != null) {
+      data = await diskCache.readData(offset, length);
+    }
+    if(data == null) {
+      data = await loader(offset, length, this);
+      if(diskCache != null) {
+        diskCache.writeData(data, offset, length);
+      }
+    }
     loadedRange.add(offset, offset + length);
     int index = offset;
     data.forEach((v) {
@@ -64,15 +77,9 @@ class InputStreamAsync {
     });
   }
 
-//  bool integrityCheck(int offset, int length){
-//    final b = buffer.sublist(offset, offset+length).every((v) => v != null);
-//    return b;
-//  }
-
   bool integrityCheck(int offset, int length){
     return loadedRange.has(offset, offset + length);
   }
-
 
   checkAndLoad(int offset, [int length = 1]) async{
     if(this.parent != null) {
@@ -221,7 +228,6 @@ class InputStreamAsync {
     return bytes;
   }
 
-
   /// Read a null-terminated string, or if [len] is provided, that number of
   /// bytes returned as a string.
   Future<String> readString({int size, bool utf8 = true}) async {
@@ -334,4 +340,8 @@ class InputStreamAsync {
   }
 
   int _length;
+
+  destroy() {
+    this.loader = null;
+  }
 }

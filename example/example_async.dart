@@ -5,6 +5,7 @@ import 'package:archive/archive.dart';
 import 'package:archive/archive_io.dart';
 import 'package:archive/src/async/archive_async.dart';
 import 'package:archive/src/async/archive_file_async.dart';
+import 'package:archive/src/async/disk-cache.dart';
 import 'package:archive/src/async/input_stream_async.dart';
 import 'package:archive/src/async/range_manage.dart';
 import 'package:archive/src/async/zip_decoder_async.dart';
@@ -14,8 +15,14 @@ import 'package:archive/src/async/zip_decoder_async.dart';
 void main() async {
   final start = DateTime.now().millisecondsSinceEpoch;
 
+
+
+
   final file = await File('test.zip').open(mode: FileMode.read);
   final fileLength = await file.length();
+
+  final diskCache = DiskCache('test.zip', fileLength, cachePath: Directory.systemTemp.path, fileName: 'test.zip');
+  await diskCache.initialize();
 
   final ias =
       InputStreamAsync((int offset, int length, InputStreamAsync self) async {
@@ -23,7 +30,7 @@ void main() async {
     await file.setPosition(offset);
     final buff = (await file.read(length)).buffer.asUint8List();
     return buff;
-  }, fileLength, chunkSize: 1024 * 4);
+  }, fileLength, chunkSize: 1024 * 4, diskCache: diskCache);
 
   ArchiveAsync archive =
       await ZipDecoderAsync().decodeBufferAsync(ias, verify: true);

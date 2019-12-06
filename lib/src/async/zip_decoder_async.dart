@@ -71,6 +71,9 @@ class ZipDecoderAsync {
     await directory.read(input, password: password);
     ArchiveAsync archive = ArchiveAsync();
 
+    archive.input = input;
+
+
     for (ZipFileHeaderAsync zfh in directory.fileHeaders) {
       final mode = zfh.externalFileAttributes;
       final compress = zfh.compressionMethod != ZipFileAsync.STORE;

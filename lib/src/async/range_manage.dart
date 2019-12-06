@@ -104,8 +104,7 @@ class RangeManage extends IterableBase<Range> {
   Iterator<Range> get iterator => list.iterator;
 
 
-  printTestProgress(int length) {
-    final barLength = 100;
+  printTestProgress(int length, {int barLength = 100}) {
     final blockSize = length ~/ barLength;
     String s = '';
     for(int i = 0; i < barLength; i++ ) {
@@ -122,10 +121,7 @@ class RangeManage extends IterableBase<Range> {
         s += '_';
       }
     }
-
-
-    print(s);
-
+    return s;
   }
 
 }

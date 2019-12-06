@@ -1,8 +1,12 @@
+import '../../archive_async.dart';
 import 'archive_file_async.dart';
 import 'dart:collection';
 
 /// A collection of files
 class ArchiveAsync extends IterableBase<ArchiveFileAsync> {
+
+  InputStreamAsync input;
+
   /// The list of files in the archive.
   List<ArchiveFileAsync> files = [];
 
@@ -61,4 +65,11 @@ class ArchiveAsync extends IterableBase<ArchiveFileAsync> {
   bool get isNotEmpty => files.isNotEmpty;
 
   Iterator<ArchiveFileAsync> get iterator => files.iterator;
+
+  destroy() {
+    this.input.destroy();
+    this.input = null;
+    this.files.forEach((v) => v.destroy());
+    this.files.clear();
+  }
 }
