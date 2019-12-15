@@ -90,7 +90,7 @@ class CacheInformation {
 }
 
 class DiskCache {
-  static int version = 2;
+  static int version = 5;
   String fileName;
   final String fileKey;
   final String fileKeyHash;

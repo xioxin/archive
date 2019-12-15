@@ -1,3 +1,4 @@
+import '../../../archive_async.dart';
 import '../input_stream_async.dart';
 import 'zip_file_async.dart';
 
@@ -20,6 +21,9 @@ class ZipFileHeaderAsync {
   List<int> extraField = [];
   String fileComment = '';
   ZipFileAsync file;
+  int fileNameLength = 0;
+  int extraLength = 0;
+  int commentLength = 0;
 
   ZipFileHeaderAsync();
 
@@ -34,20 +38,20 @@ class ZipFileHeaderAsync {
       crc32 = await input.readUint32();
       compressedSize = await input.readUint32();
       uncompressedSize =  await input.readUint32();
-      int fname_len = await input.readUint16();
-      int extra_len = await input.readUint16();
-      int comment_len = await input.readUint16();
+      fileNameLength = await input.readUint16();
+      extraLength = await input.readUint16();
+      commentLength = await input.readUint16();
       diskNumberStart = await input.readUint16();
       internalFileAttributes = await input.readUint16();
       externalFileAttributes = await input.readUint32();
       localHeaderOffset = await input.readUint32();
 
-      if (fname_len > 0) {
-        filename = await input.readString(size: fname_len);
+      if (fileNameLength > 0) {
+        filename = await input.readString(size: fileNameLength);
       }
 
-      if (extra_len > 0) {
-        InputStreamAsync extra = input.readBytes(extra_len);
+      if (extraLength > 0) {
+        InputStreamAsync extra = input.readBytes(extraLength);
         extraField = await extra.toUint8List();
 
         int id = await extra.readUint16();
@@ -78,8 +82,8 @@ class ZipFileHeaderAsync {
         }
       }
 
-      if (comment_len > 0) {
-        fileComment = await input.readString(size: comment_len);
+      if (commentLength > 0) {
+        fileComment = await input.readString(size: commentLength);
       }
 
 //      if (bytes != null) {
@@ -107,6 +111,9 @@ class ZipFileHeaderAsync {
     localHeaderOffset = data['localHeaderOffset'] ?? 0;
     filename = data['filename'] ?? '';
     extraField = data['extraField'].cast<int>() as List<int> ?? [];
+    fileNameLength = data['fileNameLength'] ?? 0;
+    extraLength = data['extraLength'] ?? 0;
+    commentLength = data['commentLength'] ?? 0;
   }
 
   Map<String, dynamic> toJson() {
@@ -126,7 +133,33 @@ class ZipFileHeaderAsync {
       'localHeaderOffset': localHeaderOffset,
       'filename': filename,
       'extraField': extraField,
+      'fileNameLength': fileNameLength,
+      'extraLength': extraLength,
+      'commentLength': commentLength,
     };
+  }
+
+
+  ZipFileHeader getSync() {
+    final header = ZipFileHeader();
+    header.versionMadeBy = versionMadeBy;
+    header.versionNeededToExtract = versionNeededToExtract;
+    header.generalPurposeBitFlag = generalPurposeBitFlag;
+    header.compressionMethod = compressionMethod;
+    header.lastModifiedFileTime = lastModifiedFileTime;
+    header.lastModifiedFileDate = lastModifiedFileDate;
+    header.crc32 = crc32;
+    header.compressedSize = compressedSize;
+    header.uncompressedSize = uncompressedSize;
+    header.diskNumberStart = diskNumberStart;
+    header.internalFileAttributes = internalFileAttributes;
+    header.externalFileAttributes = externalFileAttributes;
+    header.localHeaderOffset = localHeaderOffset;
+    header.filename = filename;
+    header.extraField = extraField;
+
+
+    return header;
   }
 
 }

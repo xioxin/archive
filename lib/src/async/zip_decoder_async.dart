@@ -1,5 +1,3 @@
-import 'dart:isolate';
-
 import '../../archive.dart';
 import '../util/archive_exception.dart';
 import '../util/crc32.dart';
@@ -10,6 +8,7 @@ import 'zip/zip_file_async.dart';
 import 'archive_async.dart';
 import 'archive_file_async.dart';
 import 'input_stream_async.dart';
+import 'package:computer/computer.dart';
 
 /// Decode a zip formatted buffer into an [Archive] object.
 class ZipDecoderAsync {
@@ -71,16 +70,19 @@ class ZipDecoderAsync {
   Future<ArchiveAsync> decodeBufferAsync(InputStreamAsync input,
       {bool verify = false, String password}) async {
 
-
-
-
+//
+//    final computer = Computer();
+//    await computer.turnOn(
+//      workersCount: 2,
+//      areLogsEnabled: false, // optional, default false
+//    );
 
     ArchiveAsync archive = ArchiveAsync();
     archive.input = input;
 
     directory = await ZipDirectoryAsync();
     final fileHeaders =  await input.diskCache.getArchiveFileHeader();
-    if (input.diskCache != null && fileHeaders.length > 0) {
+    if (input.diskCache != null && fileHeaders.isNotEmpty) {
       directory.fileHeaders = fileHeaders;
     } else {
       await directory.read(input, password: password);
@@ -91,6 +93,36 @@ class ZipDecoderAsync {
       final compress = zfh.compressionMethod != ZipFileAsync.STORE;
       var file = ArchiveFileAsync.async(
           zfh.filename, zfh.uncompressedSize, null, zfh.compressionMethod);
+
+/*      file.getArchiveFile = () async {
+        if (input.diskCache != null) {
+          if(file.isFile) {
+            final cacheData = await input.diskCache.getFile(zfh.filename);
+            if(cacheData != null) {
+              return cacheData;
+            }
+          }
+        }
+
+        final int length = 38 + zfh.fileNameLength + zfh.extraLength + zfh.compressedSize;
+
+        final subInput = await input.subsetSync(zfh.localHeaderOffset, length);
+
+        var data = await computer.compute<Map<String, dynamic>, List<int>>(
+          unzipFileThreadTask,
+          param: {
+            'header': zfh.toJson(),
+            'data': subInput.toUint8List().toList()
+          }, // optional
+        );
+        if (input.diskCache != null) {
+          if(file.isFile && data != null) {
+            await input.diskCache.saveFile(file.name, data);
+          }
+        }
+        return data;
+      };*/
+
       file.getArchiveFile = () async {
         if (input.diskCache != null) {
           if(file.isFile) {
@@ -114,11 +146,11 @@ class ZipDecoderAsync {
 //        file.setContent(zf.rawContent);
         file.lastModTime = zf.lastModFileDate << 16 | zf.lastModFileTime;
         if (input.diskCache != null) {
-          if(file.isFile && zf.rawContent != null) {
-            input.diskCache.saveFile(file.name, zf.rawContent);
+          if(file.isFile && zf.content != null) {
+            input.diskCache.saveFile(file.name, zf.content);
           }
         }
-        return zf.rawContent;
+        return zf.content;
       };
 
       file.mode = mode >> 16;
@@ -145,7 +177,15 @@ class ZipDecoderAsync {
 }
 
 
-void unzipFile(SendPort port) async {
-  await Future.delayed(Duration(seconds: 5));
-  port.send("Job's done"); //2.子线程完成任务，回报数据
+Future<List<int>> unzipFileThreadTask(Map<String, dynamic> data) async {
+
+  final start = DateTime.now().millisecondsSinceEpoch;
+
+  final zfh = ZipFileHeaderAsync.formJson(data["header"]).getSync();
+  final zf = ZipFile(InputStream(data["data"]), zfh, data["password"]);
+  List<int> content = zf.content;
+
+  final end = DateTime.now().millisecondsSinceEpoch;
+  print('timer ${zfh.filename} : ${end - start}ms');
+  return content;
 }

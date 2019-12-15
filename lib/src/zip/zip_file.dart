@@ -26,23 +26,24 @@ class ZipFile {
 
   ZipFile([InputStream input, this.header, String password]) {
     if (input != null) {
-      signature = input.readUint32();
+      //
+      signature = input.readUint32();// 4
       if (signature != SIGNATURE) {
         throw ArchiveException('Invalid Zip Signature');
       }
 
-      version = input.readUint16();
-      flags = input.readUint16();
-      compressionMethod = input.readUint16();
-      lastModFileTime = input.readUint16();
-      lastModFileDate = input.readUint16();
-      crc32 = input.readUint32();
-      compressedSize = input.readUint32();
-      uncompressedSize = input.readUint32();
-      int fn_len = input.readUint16();
-      int ex_len = input.readUint16();
-      filename = input.readString(size: fn_len);
-      extraField = input.readBytes(ex_len).toUint8List();
+      version = input.readUint16(); // 2
+      flags = input.readUint16(); // 2
+      compressionMethod = input.readUint16(); // 2
+      lastModFileTime = input.readUint16(); // 2
+      lastModFileDate = input.readUint16(); // 2
+      crc32 = input.readUint32(); // 4
+      compressedSize = input.readUint32(); // 4
+      uncompressedSize = input.readUint32(); // 4
+      int fn_len = input.readUint16(); // 2
+      int ex_len = input.readUint16(); // 2
+      filename = input.readString(size: fn_len); // filename_len
+      extraField = input.readBytes(ex_len).toUint8List(); // extraField_len
 
       // Read compressedSize bytes for the compressed data.
       _rawContent = input.readBytes(header.compressedSize);
