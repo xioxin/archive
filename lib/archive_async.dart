@@ -27,3 +27,4 @@ export 'src/async/archive_async.dart';
 export 'src/async/archive_file_async.dart';
 export 'src/async/input_stream_async.dart';
 export 'src/async/zip_decoder_async.dart';
+export 'src/async/disk-cache.dart';

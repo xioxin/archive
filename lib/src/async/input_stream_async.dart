@@ -10,9 +10,18 @@ import 'disk-cache.dart';
 
 typedef Future<List<int>> InputFunction (int offset, int length, InputStreamAsync self);
 
+
+enum InputStreamCacheType {
+  disabled,
+  memory,
+  disk,
+  static,
+}
+
+
 /// A buffer that can be read as a stream of bytes
 class InputStreamAsync {
-  final List<int> _buffer;
+  List<int> _buffer;
   get buffer{
     if(this.parent != null) {
       return parent.buffer;
@@ -31,21 +40,62 @@ class InputStreamAsync {
   }
 
   int offset;
-  final int start;
-  final int byteOrder;
-  final int chunkSize;
+  int start;
+  int byteOrder;
+  int chunkSize;
+
+  String fileKey;
+  String cachePath;
+
   InputFunction loader;
 
   DiskCache diskCache;
 
+  RangeManage _loadedRange = RangeManage();
+  RangeManage get loadedRange {
+    if(type == InputStreamCacheType.disk) {
+      return diskCache.range;
+    } else {
+      return _loadedRange;
+    }
+  }
 
-  RangeManage loadedRange = RangeManage();
+
 
   InputStreamAsync parent;
 
+  InputStreamCacheType type = InputStreamCacheType.disabled;
+
   /// Create a InputStream for reading from a List<int>
-  InputStreamAsync(this.loader, int length, {this.byteOrder = LITTLE_ENDIAN, this.chunkSize = 8 * 1024, this.start = 0, this.diskCache}):
-        _buffer = new List(length){
+  InputStreamAsync(this.loader, int length, {
+    this.byteOrder = LITTLE_ENDIAN,
+    this.start = 0,
+  }): _buffer = null{
+    type = InputStreamCacheType.disabled;
+    _length = length;
+    offset = start;
+  }
+
+  InputStreamAsync.memory(this.loader, int length, {
+    this.byteOrder = LITTLE_ENDIAN,
+    this.start = 0,
+    this.chunkSize = 4 * 1024,
+  }): _buffer = List(length) {
+    type = InputStreamCacheType.memory;
+    _length = length;
+    offset = start;
+  }
+
+  InputStreamAsync.disk(this.loader, int length, {
+    this.byteOrder = LITTLE_ENDIAN,
+    this.chunkSize = 4 * 1024,
+    this.start = 0,
+    this.fileKey,
+    this.cachePath,
+    fileName = 'data',
+  }): _buffer = null {
+    diskCache = DiskCache(fileKey, length, cachePath: cachePath, fileName: fileName);
+    type = InputStreamCacheType.disk;
     _length = length;
     offset = start;
   }
@@ -55,73 +105,62 @@ class InputStreamAsync {
     _length =  length != null ? length : this.parent._length;
   }
 
-  Future loadData(int offset, int length) async {
+  Future<List<int>> loadData(int offset, int length) async {
     if(this.parent != null) {
       return await this.parent.loadData(offset, length);
     }
-    List<int> data;
+    List<int> data = await loader(offset, length, this);
     if(diskCache != null) {
-      data = await diskCache.readData(offset, length);
+      diskCache.writeData(data, offset, length);
     }
-    if(data == null) {
-      data = await loader(offset, length, this);
-      if(diskCache != null) {
-        diskCache.writeData(data, offset, length);
-      }
+    if (_buffer != null) {
+      int index = offset;
+      data.forEach((v) {
+        buffer[index] = v;
+        index++;
+      });
+      loadedRange.add(offset, offset + length);
     }
-    loadedRange.add(offset, offset + length);
-    int index = offset;
-    data.forEach((v) {
-      buffer[index] = v;
-      index++;
-    });
+    return data;
   }
 
   bool integrityCheck(int offset, int length){
     return loadedRange.has(offset, offset + length);
   }
 
-  checkAndLoad(int offset, [int length = 1]) async{
+  Future<List<int>> checkAndLoad(int offset, [int length = 1]) async{
     if(this.parent != null) {
       return await this.parent.checkAndLoad(offset, length);
     }
-    if(!integrityCheck(offset, length)){
-
-        final start = offset;
-        final chunkLength = length < chunkSize ? chunkSize : length;
-        final end = start + chunkLength > _length ? _length : start + chunkLength;
-
-        final reverseEnd = start + length;
-        int reverseStart = reverseEnd - chunkLength;
-        if(reverseStart < 0) reverseStart = 0;
-
-        int nullSize = buffer.sublist(start, end).where((v) => v == null).length;
-        int reverseNullSize = buffer.sublist(reverseStart, reverseEnd).where((v) => v == null).length;
-
-        if(reverseNullSize > nullSize) {
-          await loadData(reverseStart, reverseEnd - reverseStart);
-        }else {
-          await loadData(start, end - start);
-        }
-//
-//      final start = offset;
-//      final end = offset + length;
-//      if(length < chunkSize) {
-//        final rightList = buffer.sublist(offset, offset + chunkSize);
-//
-//        int leftStart = offset - chunkSize + length;
-//        if(leftStart < 0) leftStart = 0;
-//
-//        final leftList = buffer.sublist(leftStart, leftStart + chunkSize);
-//
-//      }
-//        await loadData(start, end);
-//
-
-
-//    print('loadData($start, $length)');
-//      await loadData(offset, length);
+    if(!diskCache.initialized) await diskCache.initialize();
+    if(integrityCheck(offset, length)) {
+      if(type == InputStreamCacheType.memory) {
+        return _buffer.sublist(offset, offset + length);
+      }else if(type == InputStreamCacheType.disk){
+        return diskCache.readData(offset, length);
+      }
     }
+
+    final start = offset;
+    final chunkLength = length < chunkSize ? chunkSize : length;
+    final end = start + chunkLength > _length ? _length : start + chunkLength;
+
+    final reverseEnd = start + length;
+    int reverseStart = reverseEnd - chunkLength;
+    if(reverseStart < 0) reverseStart = 0;
+
+    int nullSize = loadedRange.getRangesLength(loadedRange.lose(start, end));
+    int reverseNullSize = loadedRange.getRangesLength(loadedRange.lose(reverseStart, reverseEnd));
+
+    List<int> data;
+
+    if(reverseNullSize > nullSize) {
+      data = await loadData(reverseStart, reverseEnd - reverseStart);
+    }else {
+      data = await loadData(start, end - start);
+    }
+
+    return data.sublist(offset-start, offset-start+length);
   }
 
   ///  The current read position relative to the start of the buffer.
@@ -175,9 +214,8 @@ class InputStreamAsync {
     if (length == null || length < 0) {
       length = _length - (position - start);
     }
-    await checkAndLoad(position, length);
-    return InputStream(buffer,
-        byteOrder: byteOrder, start: position, length: length);
+    final data = await checkAndLoad(position, length);
+    return InputStream(data, byteOrder: byteOrder, start: 0, length: length);
   }
 
   /// Returns the position of the given [value] within the buffer, starting
@@ -208,10 +246,9 @@ class InputStreamAsync {
 
   /// Read a single byte.
   Future<int> readByte() async {
-//    print('readByte $offset');
-//    print(buffer.sublist(0, 10));
-    await checkAndLoad(offset);
-    return buffer[offset++];
+    final data = await checkAndLoad(offset);
+    this.skip(1);
+    return data[0];
   }
 
   /// Read [count] bytes from the stream.
@@ -255,7 +292,10 @@ class InputStreamAsync {
 
   /// Read a 16-bit word from the stream.
   Future<int> readUint16() async {
-    await checkAndLoad(offset, 2);
+    final buffer = await checkAndLoad(this.offset, 2);
+    this.skip(2);
+
+    int offset = 0;
     int b1 = buffer[offset++] & 0xff;
     int b2 = buffer[offset++] & 0xff;
     if (byteOrder == BIG_ENDIAN) {
@@ -266,7 +306,10 @@ class InputStreamAsync {
 
   /// Read a 24-bit word from the stream.
   Future<int> readUint24() async {
-    await checkAndLoad(offset, 3);
+    final buffer = await checkAndLoad(this.offset, 3);
+    this.skip(3);
+
+    int offset = 0;
     int b1 = buffer[offset++] & 0xff;
     int b2 = buffer[offset++] & 0xff;
     int b3 = buffer[offset++] & 0xff;
@@ -278,7 +321,10 @@ class InputStreamAsync {
 
   /// Read a 32-bit word from the stream.
   Future<int> readUint32() async {
-    await checkAndLoad(offset, 4);
+    final buffer = await checkAndLoad(this.offset, 4);
+    this.skip(4);
+
+    int offset = 0;
     int b1 = buffer[offset++] & 0xff;
     int b2 = buffer[offset++] & 0xff;
     int b3 = buffer[offset++] & 0xff;
@@ -291,7 +337,9 @@ class InputStreamAsync {
 
   /// Read a 64-bit word form the stream.
   Future<int> readUint64() async {
-    await checkAndLoad(offset, 8);
+    final buffer = await checkAndLoad(this.offset, 8);
+    this.skip(8);
+    int offset = 0;
     int b1 = buffer[offset++] & 0xff;
     int b2 = buffer[offset++] & 0xff;
     int b3 = buffer[offset++] & 0xff;
@@ -322,26 +370,29 @@ class InputStreamAsync {
 
   Future<Uint8List> toUint8List() async {
     int len = length;
-    if (buffer is Uint8List) {
-      Uint8List b = buffer;
-      if ((offset + len) > b.length) {
-        len = b.length - offset;
-      }
-      Uint8List bytes =
-          Uint8List.view(b.buffer, b.offsetInBytes + offset, len);
-      return bytes;
-    }
+//    if (buffer is Uint8List) {
+//      Uint8List b = buffer;
+//      if ((offset + len) > b.length) {
+//        len = b.length - offset;
+//      }
+//      Uint8List bytes =
+//          Uint8List.view(b.buffer, b.offsetInBytes + offset, len);
+//      return bytes;
+//    }
+
+    final buffer = await checkAndLoad(offset, len);
     int end = offset + len;
     if (end > buffer.length) {
       end = buffer.length;
     }
-    await checkAndLoad(offset, len);
-    return Uint8List.fromList(buffer.sublist(offset, end));
+    return Uint8List.fromList(buffer);
   }
 
   int _length;
 
   destroy() {
     this.loader = null;
+    _buffer = null;
+    this.diskCache.destroy();
   }
 }

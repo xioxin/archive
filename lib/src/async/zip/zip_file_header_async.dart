@@ -89,7 +89,44 @@ class ZipFileHeaderAsync {
     }
   }
 
-
-
   String toString() => filename;
+
+  ZipFileHeaderAsync.formJson(Map<String, dynamic> data) {
+    versionMadeBy = data['versionMadeBy'] ?? 0;
+    versionNeededToExtract = data['versionNeededToExtract'] ?? 0;
+    generalPurposeBitFlag = data['compressionMethod'] ?? 0;
+    compressionMethod = data['compressionMethod'] ?? 0;
+    lastModifiedFileTime = data['lastModifiedFileTime'] ?? 0;
+    lastModifiedFileDate = data['lastModifiedFileDate'] ?? 0;
+    crc32 = data['crc32'] ?? 0;
+    compressedSize = data['compressedSize'] ?? 0;
+    uncompressedSize = data['uncompressedSize'] ?? 0;
+    diskNumberStart = data['diskNumberStart'] ?? 0;
+    internalFileAttributes = data['internalFileAttributes'] ?? 0;
+    externalFileAttributes = data['externalFileAttributes'] ?? 0;
+    localHeaderOffset = data['localHeaderOffset'] ?? 0;
+    filename = data['filename'] ?? '';
+    extraField = data['extraField'].cast<int>() as List<int> ?? [];
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'versionMadeBy': versionMadeBy,
+      'versionNeededToExtract': versionNeededToExtract,
+      'generalPurposeBitFlag': generalPurposeBitFlag,
+      'compressionMethod': compressionMethod,
+      'lastModifiedFileTime': lastModifiedFileTime,
+      'lastModifiedFileDate': lastModifiedFileDate,
+      'crc32': crc32,
+      'compressedSize': compressedSize,
+      'uncompressedSize': uncompressedSize,
+      'diskNumberStart': diskNumberStart,
+      'internalFileAttributes': internalFileAttributes,
+      'externalFileAttributes': externalFileAttributes,
+      'localHeaderOffset': localHeaderOffset,
+      'filename': filename,
+      'extraField': extraField,
+    };
+  }
+
 }

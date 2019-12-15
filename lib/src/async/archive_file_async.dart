@@ -6,7 +6,7 @@ import '../util/input_stream.dart';
 import '../zlib/inflate.dart';
 
 
-typedef Future ArchiveFileFunction();
+typedef Future<List<int>> ArchiveFileFunction();
 
 /// A file contained in an Archive.
 class ArchiveFileAsync {
@@ -59,15 +59,23 @@ class ArchiveFileAsync {
     }
   }
 
-
   ArchiveFileAsync.async(this.name,this.size, ArchiveFileFunction getArchiveFile, [this._compressionType = STORE]){
     _content = null;
     this.getArchiveFile = getArchiveFile;
   }
 
-  Future<ArchiveFileAsync> loadContent() async {
-    await getArchiveFile();
-    return this;
+  Future<List<int>> getArchiveFilePromise;
+
+  Future<List<int>> getContent() {
+    if(getArchiveFilePromise != null) {
+      return getArchiveFilePromise;
+    }
+
+    getArchiveFilePromise = getArchiveFile().then((data) {
+      this.getArchiveFilePromise = null;
+      return data;
+    });
+    return getArchiveFilePromise;
   }
 
   ArchiveFileAsync.noCompress(this.name, this.size, content) {
